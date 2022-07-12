@@ -118,11 +118,7 @@ export default class Demo extends Phaser.Scene {
       this
     );
 
-    this.scoreText = this.add.text(16, 16, "score: 0", {
-      fontSize: "32px",
-      color: "#000",
-    });
-
+    this.scoreText = this.initScoreText();
     this.createBombs();
   }
 
@@ -184,6 +180,17 @@ export default class Demo extends Phaser.Scene {
 
   private initStars(): void {
     // this.add.image(400, 300, "star");
+  }
+
+  private initScoreText(): Phaser.GameObjects.Text {
+    const scoreText = this.add.text(16, 16, "Score: 0", {
+      fontSize: "32px",
+      color: "#000",
+    });
+    // Score text should be static in camera view
+    scoreText.setScrollFactor(0);
+
+    return scoreText;
   }
 
   private createBombs(): void {
