@@ -10,7 +10,7 @@ export default class Demo extends Phaser.Scene {
   private score = 0;
   private scoreText: Phaser.GameObjects.Text;
 
-  private gameOver = false;
+  private menuButtonContainer: Phaser.GameObjects.Container;
 
   constructor() {
     super({
@@ -27,6 +27,29 @@ export default class Demo extends Phaser.Scene {
       frameWidth: 32,
       frameHeight: 48,
     });
+
+    // menu assets
+    this.load.atlasXML(
+      "blue_menu",
+      "uipack_fixed/Spritesheet/blueSheet.png",
+      "uipack_fixed/Spritesheet/blueSheet.xml"
+    );
+
+    this.load.atlasXML(
+      "grey_menu",
+      "uipack_fixed/Spritesheet/greySheet.png",
+      "uipack_fixed/Spritesheet/greySheet.xml"
+    );
+
+    this.load.atlasXML(
+      "red_menu",
+      "uipack_fixed/Spritesheet/redSheet.png",
+      "uipack_fixed/Spritesheet/redSheet.xml"
+    );
+  }
+
+  private updateScoreText(): void {
+    this.scoreText.setText(`Score: ${this.score}`);
   }
 
   create() {
@@ -35,6 +58,7 @@ export default class Demo extends Phaser.Scene {
     this.initBackground();
     this.initStars();
     this.initPlatforms();
+    this.menuButtonContainer = this.initMenu();
 
     this.player = this.physics.add.sprite(100, 450, "dude");
 
@@ -68,12 +92,6 @@ export default class Demo extends Phaser.Scene {
       repeat: -1,
     });
 
-    this.stars = this.physics.add.group({
-      key: "star",
-      repeat: 32,
-      setXY: { x: 12, y: 0, stepX: 100 },
-    });
-
     this.stars.children.iterate(function (child) {
       child.body.gameObject.setBounceY(Phaser.Math.FloatBetween(0.4, 0.8));
     });
@@ -88,7 +106,7 @@ export default class Demo extends Phaser.Scene {
         star.body.gameObject.disableBody(true, true);
 
         this.score += 10;
-        this.scoreText.setText(`Score: ${this.score}`);
+        this.updateScoreText();
 
         if (this.stars.countActive(true) === 0) {
           this.stars.children.iterate(
@@ -108,10 +126,7 @@ export default class Demo extends Phaser.Scene {
               ? Phaser.Math.Between(400, 800)
               : Phaser.Math.Between(0, 400);
 
-          const bomb = this.bombs.create(x, 16, "bomb");
-          bomb.setBounce(1);
-          bomb.setCollideWorldBounds(true);
-          bomb.setVelocity(Phaser.Math.Between(-200, 200), 20);
+          this.addBomb(x);
         }
       },
       null,
@@ -119,7 +134,9 @@ export default class Demo extends Phaser.Scene {
     );
 
     this.scoreText = this.initScoreText();
-    this.createBombs();
+    this.initBombs();
+
+    this.input.keyboard.manager.stopListeners();
   }
 
   update(_time: number, _delta: number): void {
@@ -179,7 +196,11 @@ export default class Demo extends Phaser.Scene {
   }
 
   private initStars(): void {
-    // this.add.image(400, 300, "star");
+    this.stars = this.physics.add.group({
+      key: "star",
+      repeat: 31,
+      setXY: { x: 12, y: 0, stepX: 100 },
+    });
   }
 
   private initScoreText(): Phaser.GameObjects.Text {
@@ -193,7 +214,98 @@ export default class Demo extends Phaser.Scene {
     return scoreText;
   }
 
-  private createBombs(): void {
+  private initMenu(): Phaser.GameObjects.Container {
+    const menuBackground = this.add.image(0, 0, "grey_menu", "grey_panel.png");
+
+    const startButton = this.add.image(
+      menuBackground.x,
+      menuBackground.y,
+      "blue_menu",
+      "blue_button00.png"
+    );
+    const startButtonText = this.add
+      .text(startButton.x, startButton.y, "Play")
+      .setOrigin(0.5);
+
+    // const quitButton = this.add.image(
+    //   menuBackground.x,
+    //   menuBackground.y - menuBackground.height / 2 + startButton.height + 20,
+    //   "red_menu",
+    //   "red_button01.png"
+    // );
+    // const quitButtonText = this.add
+    //   .text(quitButton.x, quitButton.y, "Quit")
+    //   .setOrigin(0.5);
+
+    const buttonContainer = this.add.container(
+      this.cameras.main.centerX,
+      this.cameras.main.centerY,
+      [menuBackground, startButton, startButtonText]
+    );
+
+    menuBackground.setDisplaySize(
+      startButton.width + 20,
+      startButton.height + 20
+    );
+
+    buttonContainer.setScrollFactor(0);
+    startButton.setScrollFactor(0);
+
+    startButton.setInteractive({ cursor: "pointer" });
+    // quitButton.setInteractive({ cursor: "pointer" });
+
+    const hooverHexColor = 0xdbf6db;
+    startButton.on("pointerover", () => startButton.setTint(hooverHexColor));
+    startButton.on("pointerout", () => startButton.clearTint());
+    // quitButton.on("pointerover", () => quitButton.setTint(hooverHexColor));
+    // quitButton.on("pointerout", () => quitButton.clearTint());
+
+    startButton.on("pointerup", () => this.startGame());
+
+    return buttonContainer;
+  }
+
+  private startGame(): void {
+    this.input.keyboard.manager.startListeners();
+    this.menuButtonContainer.setVisible(false);
+
+    this.player.clearTint();
+    this.player.setPosition(100, 450);
+
+    this.score = 0;
+    this.updateScoreText();
+
+    this.physics.resume();
+
+    //TODO: remove next line
+    setTimeout(() => {
+      this.playerGotHit(this.player, null);
+    }, 3000);
+  }
+
+  private gameOver(): void {
+    this.input.keyboard.manager.stopListeners();
+
+    const startButtonText: Phaser.GameObjects.Text = this.menuButtonContainer.getAt(2) as Phaser.GameObjects.Text;
+    startButtonText.setText('Retry');
+    this.menuButtonContainer.setVisible(true);
+  }
+
+  private addBomb(playerX: number): Phaser.Physics.Arcade.Sprite {
+    const spawnX =
+      playerX < WORLD_DIMENSIONS.x / 2
+        ? Phaser.Math.Between(WORLD_DIMENSIONS.x / 2, WORLD_DIMENSIONS.x)
+        : Phaser.Math.Between(0, WORLD_DIMENSIONS.x / 2);
+
+    const bomb = this.bombs.create(spawnX, 16, "bomb");
+    bomb.setBounce(1);
+    bomb.setCollideWorldBounds(true);
+    bomb.setVelocity(Phaser.Math.Between(-200, 200), 20);
+
+    return bomb;
+  }
+
+  private initBombs(): void {
     this.bombs = this.physics.add.group();
 
     this.physics.add.collider(this.bombs, this.platforms);
@@ -201,18 +313,26 @@ export default class Demo extends Phaser.Scene {
     this.physics.add.collider(
       this.player,
       this.bombs,
-      (player, _bomb) => {
-        this.physics.pause();
-
-        player.body.gameObject.setTint(0xff0000);
-        player.body.gameObject.anims.play("turn");
-
-        this.gameOver = true;
-      },
+      this.playerGotHit,
       null,
       this
     );
   }
+
+
+
+  playerGotHit = (
+    player: Phaser.Types.Physics.Arcade.GameObjectWithBody,
+    _bomb: Phaser.Types.Physics.Arcade.GameObjectWithBody
+  ) => {
+    // Player got hit by bomb
+    this.physics.pause();
+
+    player.body.gameObject.setTint(0xff0000);
+    player.body.gameObject.anims.play("turn");
+
+    this.gameOver();
+  };
 }
 
 const config = {
